@@ -2,59 +2,69 @@
 Variables are numbers/strings
 '''
 
+import pprint
 from copy import copy
-
-#def partial_scheme_eval(program, env):
-
-class Environment(object):
-    def __init__(self):
-        self.values = []
-    def push(self, var, arg):
-        self.values.append((var, arg),)
-    def pop(self):
-        self.values.pop()
-    def get_val(self, var):
-        turn_into_dict = dict(self.values) # later values have prescedence
-        return turn_into_dict.get(var)
 
 def my_scheme_eval(term, env=None):
     ## Initialization of ENV
     if env is None:
-        env = Environment()
-    ## VARIABLE
-    if type(term) != list:
-        val = env.get_val(term)
-        if val: # this variable exists in the environment; substitue
-            return val
-        # this variable does not exist in the environment; don't substittue
-        return term
-    ## FUNCTION DEFINITION
-    if term[0] == 'lambda':
-        _, param, program = term
-        return ['lambda', param, my_scheme_eval(program, env)]
-    ## FUNCTION APPLICATION
-    if type(term[0]) == list and term[0][0] == 'lambda':
-        _, param, program = term[0]
-        arg = my_scheme_eval(term[1])
-        env.push(param, arg) # add the new param/arg to env
-        retval = my_scheme_eval(program, env) 
-        env.pop() # remove it to continue computation
-        return retval
-    return term
+        env = []
 
+    ## GREGNAME: REFERENCE BINDING
+    if type(term) != list:
+
+        env_dict = dict(env) # later values have prescedence
+        value = env_dict.get(term)
+
+        if value: # this variable exists in the environment; substitue
+            return value # this is already a closure
+        raise ValueError()
+
+    ## GREGNAME: ClOSE OVER ENV
+    if term[0] == 'lambda':
+        return (term, env) # bsically don't do anything
+
+    ## GREGNAME: APPLY CLOSURE
+    if type(term[0]) == list:
+        value = my_scheme_eval(term[0], env) #(term,env) pair
+        value_u = my_scheme_eval(term[1], env) 
+        func_a = value[0][2]
+        env_f = copy(value[1])
+        param = value[0][1] # x
+        env_f.append((param, value_u),)
+        return my_scheme_eval(func_a, env_f)
+
+
+    ## What the hell is travesrseee environmenttt?
+    # post processing?
+    # deleting uselsess environments?
+
+
+def print2(x):
+    pprint.pprint(x, depth=8842386334636)
 
 #Tests
-assert my_scheme_eval('x') == 'x'
-assert my_scheme_eval(['lambda', 'x', 'y']) == ['lambda', 'x', 'y']
+print2(my_scheme_eval(['lambda', 'x', 'x']))
 
-prog = [['lambda', 'x', ['lambda', 'y', 'x']], 'z']
-assert my_scheme_eval(prog) == ['lambda', 'y', 'z']
+print2(my_scheme_eval([['lambda', 'x', 'x'], ['lambda', 'x', 'x']]))
+print2(my_scheme_eval([['lambda', 'x', 'x'], ['lambda', 'y', 'y']]))
+print2(my_scheme_eval([['lambda', 'y', 'y'], ['lambda', 'x', 'x']]))
+print2(my_scheme_eval([['lambda', 'y', ['lambda', 'z', 'y']], ['lambda', 'x', 'x']]))
+print2(my_scheme_eval([[['lambda', 'y', ['lambda', 'z', 'y']], ['lambda', 'x', 'x']], ['lambda', 'j,' 'j']]))
 
-prog = [['lambda', 'x', ['lambda', 'y', 'x']], ['lambda', 'f', 'z']]
-assert my_scheme_eval(prog) == ['lambda', 'y', ['lambda', 'f', 'z']]
-
-prog = [['lambda', 'x', ['lambda', 'y', 'x']], ['lambda', 'y', 'y']]
+'''
+prog = [['lambda', 'x', ['lambda', 'y', 'x']], 'z'] # not a lambda?
 print my_scheme_eval(prog)
 
-print my_scheme_eval([prog, 'z'])
+prog = [['lambda', 'x', ['lambda', 'y', 'x']], ['lambda', 'f', 'z']]
+print my_scheme_eval(prog)
 
+prog = [['lambda', 'x', ['lambda', 'y', 'x']], ['lambda', 'y', 'y']]
+
+print my_scheme_eval(prog) # ['lambda', 'y', ['lambda', 'y', 'y']]
+
+m = [prog, 'z']
+print m
+print my_scheme_eval(m)
+
+'''
