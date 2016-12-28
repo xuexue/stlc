@@ -17,6 +17,9 @@
         (env-lookup-default env name default)))
     ('() (default))))
 (define (env-lookup env name) (env-lookup-default env name (lambda () name)))
+(define (env-lookup-fail env name)
+  (env-lookup-default
+    env name (lambda () (error (format "unbound variable: ~a" name)))))
 (define (env-extend env name val) `((,name ,val) . ,env))
 
 (define (eval-term env term)
@@ -36,7 +39,7 @@
       (let ((name1 (gensym name)))
         `(lambda ,name1 ,(normalize-term (env-extend cenv name name1) body))))
     (`(,fn ,arg) `(,(normalize-term env fn) ,(normalize-term env arg)))
-    (_ term)))
+    (term term)))
 
 (define (denote-term term)
   (match term
@@ -63,10 +66,18 @@
 (define (normalize term) (normalize-term env-empty term))
 (define (denote term) ((denote-term term) env-empty))
 
+(define (parse-type type-stx)
+  (match type-stx
+    (`(,ty0) (parse-type ty0))
+    (`(,ty0 -> . ,rest) `(,(parse-type ty0) -> ,(parse-type rest)))
+    (_ type-stx)))
+
 (define (parse penv stx)
   (define (free-name? name) (not (env-lookup-default penv name (lambda () #f))))
   (define (special? name) (procedure? (env-lookup penv name)))
   (match stx
+    (`(,term ,(? free-name? ':) . ,type)
+      `(,(parse penv term) : ,(parse-type type)))
     (`(,(? free-name? 'lambda) ,params ,body)
       (match params
         (`(,name)          (parse penv `(lambda ,name ,body)))
@@ -140,6 +151,11 @@
     cons  = (lambda (h t c n) (c h (t c n)))
     foldr = (lambda (c n xs) (xs c n))
 
+    r0 = ((cons n0 nil) : a -> b -> h -> t -> z)
+    ;r0 = (cons n0 nil)
+    r1 = (cons n1 r0)
+    r2 = (cons n2 r1)
+
     pair  = (lambda (l r f) (f l r))
     left  = (lambda p (p true))
     right = (lambda p (p false))
@@ -188,3 +204,23 @@
 (define (denote-pair left right term)
   (closure->pair left right (denote term)))
 (define (denote-list element term) (closure->list element (denote-term)))
+
+(define (type-term env term)
+  (define (has-type? env term type)
+    (match term
+      (`(lambda ,name ,body)
+        (match type
+          (`(,in -> ,out) (has-type? (env-extend env name in) body out))
+          (_ #f)))
+      (_ (equal? (type-term env term) type))))
+  (match term
+    (`(,term : ,type) (and (has-type? env term type) type))
+    (`(lambda ,name ,body)
+      (error (format "missing type annotation: ~a" term)))
+    (`(,fn ,arg)
+      (match (type-term env fn)
+        (`(,in -> ,out) (and (has-type? env arg in) out))
+        (_ #f)))
+    (_ (env-lookup env term))))
+
+(define (type term) (type-term env-empty term))
