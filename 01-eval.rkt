@@ -128,3 +128,25 @@
   (syntax-rules ()
     ((_ body ...) (let ((penv env-empty))
                     (lc-module-k penv () () () body ...)))))
+
+(define example
+  (lc-module
+    true  = (lambda (t f) t)
+    false = (lambda (t f) f)
+
+    (if condition true-alt false-alt) =
+    ((condition (lambda _ true-alt) (lambda _ false-alt)) (lambda _ _))
+
+    n0   = (lambda (f x) x)
+    succ = (lambda (n f x) (f (n f x)))
+    (exp a b) = (b a)
+
+    n1   = (succ n0)
+    n2   = (succ n1)
+    n3   = (succ n2)
+    n8   = (exp n2 n3)
+    n256 = (exp n2 n8)
+
+    add = (lambda (a b f x) (a f (b f x)))
+    mul = (lambda (a b f) (a (b f)))
+    ))
