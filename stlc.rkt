@@ -69,6 +69,7 @@
 (define (parse-type type-stx)
   (match type-stx
     (`(,ty0) (parse-type ty0))
+    (`(,ty0 ->) (error (format "incomplete -> type: ~a" type-stx)))
     (`(,ty0 -> . ,rest) `(,(parse-type ty0) -> ,(parse-type rest)))
     (_ type-stx)))
 
@@ -151,7 +152,7 @@
     cons  = (lambda (h t c n) (c h (t c n)))
     foldr = (lambda (c n xs) (xs c n))
 
-    r0 = ((cons n0 nil) : a -> b -> h -> t -> z)
+    r0 = ((cons n0 nil) : (((a -> a) -> a -> a) -> (b -> b)) -> (b -> b))
     ;r0 = (cons n0 nil)
     r1 = (cons n1 r0)
     r2 = (cons n2 r1)
@@ -183,6 +184,9 @@
     n15 = (sum r6)
     r11 = (range-descending n11)
 
+    ra4 = (cons n0 (cons n1 (cons n2 (cons n3 (cons n4 nil)))))
+    n10 = (sum ra4)
+
     filter = (lambda p?
                (foldr (lambda (h t)
                         (if (p? h) (cons h t) t))
@@ -205,27 +209,11 @@
   (closure->pair left right (denote term)))
 (define (denote-list element term) (closure->list element (denote-term)))
 
-(define (type-term env term)
-  (define (has-type? env term type)
-    (match term
-      (`(lambda ,name ,body)
-        (match type
-          (`(,in -> ,out) (has-type? (env-extend env name in) body out))
-          (_ #f)))
-      (_ (equal? (type-term env term) type))))
-  (match term
-    (`(,term : ,type) (and (has-type? env term type) type))
-    (`(lambda ,name ,body)
-      (error (format "missing type annotation: ~a" term)))
-    (`(,fn ,arg)
-      (match (type-term env fn)
-        (`(,in -> ,out) (and (has-type? env arg in) out))
-        (_ #f)))
-    (_ (env-lookup env term))))
-
-(define (type term) (type-term env-empty term))
-
-(define (var name) (vector name))
+(define var-index 0)
+(define (var name)
+  (let ((vr (vector var-index)))
+    (set! var-index (+ 1 var-index))
+    vr))
 (define var? vector?)
 
 (define st-empty '())
@@ -239,7 +227,12 @@
     (let ((tm1 (st-lookup st tm)))
       (if (eq? tm tm1) tm1 (walk st tm1)))
     tm))
+(define (walk* st tm)
+  (match (walk st tm)
+    (`(,in -> ,out) `(,(walk* st in) -> ,(walk* st out)))
+    (val val)))
 
+;(define (does-not-occur? st vr tm) st) ;; Use this to see some recursive types
 (define (does-not-occur? st vr tm)
   (match tm
     (`(,t0 -> ,t1)
@@ -259,3 +252,45 @@
             (let ((st (unify st a0 a1)))
               (and st (unify st b0 b1))))
           (_ #f))))))
+
+(define (succeed st) st)
+(define (fail st) #f)
+(define (== t0 t1) (lambda (st) (unify st t0 t1)))
+
+(define-syntax conj*
+  (syntax-rules ()
+    ((_) succeed)
+    ((_ g0) g0)
+    ((_ g0 gs ...)
+     (lambda (st) (let ((st (g0 st))) (and st ((conj* gs ...) st)))))))
+(define-syntax let/vars
+  (syntax-rules ()
+    ((_ (lvar ...) body ...) (let ((lvar (var 'lvar)) ...) body ...))))
+(define-syntax fresh
+  (syntax-rules ()
+    ((_ lvars body ...) (let/vars lvars (conj* body ...)))))
+
+(define (type-term env term result)
+  (define (has-type env term type)
+    (match term
+      (`(lambda ,name ,body)
+        (fresh (in out)
+          (== `(,in -> ,out) type)
+          (has-type (env-extend env name in) body out)))
+      (_ (type-term env term type))))
+  (match term
+    (`(,term : ,type)
+      (conj* (== result type) (has-type env term type)))
+    (`(lambda ,name ,body) (has-type env term result))
+    (`(,fn ,arg)
+      (fresh (ftype in)
+        (== `(,in -> ,result) ftype)
+        (type-term env fn ftype)
+        (has-type env arg in)))
+    (_ (== result (env-lookup env term)))))
+
+(define (type term)
+  (set! var-index 0)
+  (let/vars (result)
+    (let ((st ((type-term env-empty term result) st-empty)))
+      (and st (walk* st result)))))
