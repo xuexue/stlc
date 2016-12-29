@@ -94,3 +94,37 @@
             (loop args `(,pfn ,(parse penv arg))))
           ('() pfn))))
     (_ (env-lookup penv stx))))
+
+(define-syntax env-extend-params
+  (syntax-rules ()
+    ((_ env param params ...)
+     (env-extend-params (env-extend env 'param param) params ...))
+    ((_ env) env)))
+(define-syntax lc-module-k
+  (syntax-rules (=)
+    ((_ penv (bindings ...) (clauses ...) (data ...) (name params ...) = rhs rest ...)
+     (lc-module-k penv
+                  (bindings ...
+                   (name (lambda (params ...)
+                           (parse (env-extend-params penv params ...) 'rhs)))
+                   (penv (env-extend penv 'name name)))
+                  (clauses ... ('name name))
+                  (data ... (list 'name name))
+                  rest ...))
+    ((_ penv (bindings ...) (clauses ...) (data ...) name = rhs rest ...)
+     (lc-module-k penv
+                  (bindings ...
+                   (name (parse penv 'rhs))
+                   (penv (env-extend penv 'name name)))
+                  (clauses ... ('name name))
+                  (data ... (list 'name name))
+                  rest ...))
+    ((_ penv bindings (clauses ...) (data ...))
+     (let* bindings (lambda args
+                      (match args
+                        ('() (list data ...))
+                        (`(,name) (match name clauses ...))))))))
+(define-syntax lc-module
+  (syntax-rules ()
+    ((_ body ...) (let ((penv env-empty))
+                    (lc-module-k penv () () () body ...)))))
