@@ -72,3 +72,25 @@
 (define (denote-pair left right term)
   (closure->pair left right (denote term)))
 (define (denote-list element term) (closure->list element (denote-term)))
+
+(define (parse penv stx)
+  (define (free-name? name)
+    (not (env-lookup-default penv name (lambda () #f))))
+  (define (special? name)
+    (procedure? (env-lookup penv name)))
+  (match stx
+    (`(,(? free-name? 'lambda) ,params ,body)
+      (match params
+        (`(,name)          (parse penv `(lambda ,name ,body)))
+        (`(,name . ,names) (parse penv `(lambda ,name (lambda ,names ,body))))
+        (name              `(lambda ,name
+                              ,(parse (env-extend penv name name) body)))))
+    (`(,(? symbol? (? special? fn)) . ,args)
+      (parse penv (apply (env-lookup penv fn) args)))
+    (`(,fn . ,args)
+      (let loop ((args args) (pfn (parse penv fn)))
+        (match args
+          (`(,arg . ,args)
+            (loop args `(,pfn ,(parse penv arg))))
+          ('() pfn))))
+    (_ (env-lookup penv stx))))
