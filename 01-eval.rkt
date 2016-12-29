@@ -28,5 +28,13 @@
         (vfn `(,vfn ,(eval-term env arg)))))  ;; Symbolic application
     (_ (env-lookup env term))))
 
+(define (normalize-term env term)
+  (match (eval-term env term)
+    (`(closure ,name ,body ,cenv)
+      (let ((name1 (gensym name)))
+        `(lambda ,name1 ,(normalize-term (env-extend cenv name name1) body))))
+    (`(,fn ,arg) `(,(normalize-term env fn) ,(normalize-term env arg)))
+    (term term)))
 
 (define (eval term) (eval-term env-empty term))
+(define (normalize term) (normalize-term env-empty term))
