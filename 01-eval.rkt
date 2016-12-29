@@ -1,28 +1,32 @@
 #lang racket
 
-(define (env-lookup env name)
+(define env-empty '())
+
+(define (env-lookup-default env name default)
   (match env
     (`((,n ,val) . ,env)
       (if (eq? n name)
-        val                      ;; Reference binding
-        (env-lookup env name)))  ;; Traverse environment
-    ('() (error (format "unbound variable: ~a" name)))))
+        val                                     ;; Reference binding
+        (env-lookup-default env name default))) ;; Traverse environment
+    ('() (default))))
+(define (env-lookup env name) (env-lookup-default env name (lambda () name)))
+(define (env-lookup-fail env name)
+  (env-lookup-default
+    env name (lambda () (error (format "unbound variable: ~a" name)))))
 
 (define (env-extend env name val) `((,name ,val) . ,env))
 
+;; Extended to support symbolic evaluation under unapplied lambdas
 (define (eval-term env term)
   (match term
-    ((? symbol?) (env-lookup env term))
     (`(lambda ,name ,body)
       `(closure ,name ,body ,env))  ;; Close over environment
-    (`(,fn ,arg)                    ;; Apply closure
+    (`(,fn ,arg)
       (match (eval-term env fn)
-        (`(closure ,name ,body ,cenv)
-          (eval-term
-            (env-extend cenv name (eval-term env arg))
-            body))))))
+        (`(closure ,name ,body ,cenv)  ;; Apply closure
+          (eval-term (env-extend cenv name (eval-term env arg)) body))
+        (vfn `(,vfn ,(eval-term env arg)))))  ;; Symbolic application
+    (_ (env-lookup env term))))
 
-(define (eval term) (eval-term '() term))
 
-(lambda x (lambda y x))
-(lambda x (lambda y y))
+(define (eval term) (eval-term env-empty term))
