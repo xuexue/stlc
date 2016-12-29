@@ -23,3 +23,6 @@
             body))))))
 
 (define (eval term) (eval-term '() term))
+
+(lambda x (lambda y x))
+(lambda x (lambda y y))
