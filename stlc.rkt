@@ -224,3 +224,38 @@
     (_ (env-lookup env term))))
 
 (define (type term) (type-term env-empty term))
+
+(define (var name) (vector name))
+(define var? vector?)
+
+(define st-empty '())
+(define (st-assign st vr val) (cons (list vr val) st))
+(define (st-lookup st v0)
+  (match st
+    (`((,v1 ,val) . ,st) (if (eq? v0 v1) val (st-lookup st v0)))
+    (_ v0)))
+(define (walk st tm)
+  (if (var? tm)
+    (let ((tm1 (st-lookup st tm)))
+      (if (eq? tm tm1) tm1 (walk st tm1)))
+    tm))
+
+(define (does-not-occur? st vr tm)
+  (match tm
+    (`(,t0 -> ,t1)
+      (and (does-not-occur? st vr (walk st t0))
+           (does-not-occur? st vr (walk st t1))))
+    (_ (and (not (eq? vr tm)) st))))
+(define (unify st t0 t1)
+  (let ((t0 (walk st t0))
+        (t1 (walk st t1)))
+    (cond
+      ((eq? t0 t1) st)
+      ((var? t0) (and (does-not-occur? st t0 t1) (st-assign st t0 t1)))
+      ((var? t1) (and (does-not-occur? st t1 t0) (st-assign st t1 t0)))
+      (else
+        (match (list t0 t1)
+          (`((,a0 -> ,b0) (,a1 -> ,b1))
+            (let ((st (unify st a0 a1)))
+              (and st (unify st b0 b1))))
+          (_ #f))))))
