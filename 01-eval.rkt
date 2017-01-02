@@ -149,4 +149,21 @@
 
     add = (lambda (a b f x) (a f (b f x)))
     mul = (lambda (a b f) (a (b f)))
+
+
+    nil = (lambda (c n) n)
+    cons = (lambda (h t c n) (c h (t c n)))
+
+    ; (cons A nil) ==> (lambda (c n) (c A n))
+    ; (cons B (cons A nil)) ==> (lambda (c n) (c B (c A n)))
+    ;
+    ; c = (lambda (a b) (f b)) ==> church numerals
+    ; c = (lambda (a b) a) ==> car
+    ; c = (lambda (a b) b) ==> n
+    ; cdr == subtraction
+    ;
+    ; n == our initial value
+    ; c = (lambda (value acc) (accumulate value acc))
+    ; foldr = (lambda (combiner init xs) (xs combiner init))
+
     ))
