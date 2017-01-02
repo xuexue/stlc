@@ -1,11 +1,11 @@
 #lang racket
 
-(define (type-lookup env name)
-  (match env
-    (`((,n ,val) . ,env)
+(define (type-lookup gamma name)
+  (match gamma
+    (`((,n ,val) . ,gamma)
       (if (eq? n name)
         val                        ;; Reference binding
-        (type-lookup env name))))) ;; Traverse environment
+        (type-lookup gamma name))))) ;; Traverse gamma 
 
 (define (type-extend gamma name val) `((,name ,val) . ,gamma))
 
