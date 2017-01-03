@@ -28,6 +28,45 @@
                              fnin type-of-arg)))))))
     (_ (type-lookup gamma term))))
 
+
+(define x (gensym `A))
+(define y (gensym `B))
+
+; Produces unique variable names given gamma
+; EXTERNAL API:
+(define (type-inf-outer gamma term)
+  (type-inf gamma term '()))
+
+; internal recursive accumulative thingy
+(define (type-inf gamma term sub) ;sub = empty to start
+  (match term
+    (`(lambda ,name ,body) ;unannotated type
+
+      (let* ((input-type (gensym)) ;name -> A
+             (output-type (gensym)) ;body -> B
+             (gamma2 (type-extend gamma name input-type))
+             ((list type-of-result newsub)
+              (type-inf gamma2 body sub)) ;?
+        )
+        (list `(,input-type -> ,output-type) ;(or type-of-result?)
+              (unify newsub output-type type-of-result))))
+    (`((lambda ,name ,body) : (,type1 -> ,type2))
+      ; a bit of repetition but whatever
+      (let* ((gamma2 (type-extend gamma name type1))
+             ((list type-of-result newsub)
+              (type-inf gamma2 body sub)))
+        (list `(,type1 -> ,type2)
+              (unify newsub type2 type-of-result))))
+    (`(,fn ,arg)
+      (let* ((fn-in (gensym))
+             (fn-out (gensym))
+             ((list fn-type sub2) (type-inf gamma fn sub))
+             (sub3 (unify fn-type `(,fn-in -> ,fn-out) sub2))
+             ((list arg-type sub4) (type-inf gamma arg sub3))
+             (sub5 (unify arg-type fn-in sub4)))
+        `(,fnout ,sub5)))
+    (_ (list (type-lookup gamma term) sub))))
+
 ; gamma { c: (1->2), n: 1 }
 
 ;x = (lambda (c n) (lambda c c) (lambda c c))
